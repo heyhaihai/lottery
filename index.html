@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>777 拉霸抽籤（自我排除＋不重複）</title>
   <style>
     :root{
@@ -29,6 +29,7 @@
       color:var(--txt);
       font-size:var(--font);
       line-height:1.45;
+      -webkit-text-size-adjust: 100%;
     }
     h1{ margin:0 0 10px; font-size:28px; letter-spacing:.5px; }
     .muted{ color:var(--muted); font-size:18px; }
@@ -95,12 +96,35 @@
       letter-spacing: 3px;
       text-transform: uppercase;
       font-size: 22px;
+      position:relative;
     }
     .marquee .dots{
       margin-left:10px;
       font-weight:900;
       letter-spacing: 8px;
     }
+    /* WIN 燈牌 */
+    .winBadge{
+      position:absolute;
+      right:12px; top:8px;
+      padding:6px 10px;
+      border-radius: 999px;
+      border: 2px solid #1a123055;
+      background: rgba(255,255,255,.22);
+      font-weight: 1000;
+      letter-spacing: 2px;
+      display:none;
+      user-select:none;
+    }
+    .winOn .winBadge{
+      display:inline-flex;
+      animation: badgeBlink .7s infinite alternate;
+    }
+    @keyframes badgeBlink{
+      from{ transform: translateY(0); filter: brightness(1); }
+      to{ transform: translateY(-1px); filter: brightness(1.5); }
+    }
+
     .machineBody{
       padding: 16px;
       display:grid;
@@ -118,6 +142,7 @@
       border-radius: 22px;
       padding: 16px;
       position:relative;
+      overflow:hidden;
     }
 
     .reels{
@@ -164,7 +189,6 @@
     .glow{
       position:absolute; inset:-30px;
       background: radial-gradient(closest-side, rgba(253,160,133,.20), transparent 60%);
-      filter: blur(0px);
       opacity: .0;
       transition: opacity .25s ease;
       pointer-events:none;
@@ -185,9 +209,40 @@
       border: 1px solid #2a3a6d;
       background: #0b1227;
       padding: 14px;
+      position:relative;
     }
     .ok{ color: var(--ok); }
     .danger{ color: var(--danger); }
+
+    /* 🎇 爆閃 overlay */
+    .flashOverlay{
+      position:absolute;
+      inset:-40px;
+      pointer-events:none;
+      opacity:0;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(246,211,101,.45), transparent 45%),
+        radial-gradient(circle at 70% 40%, rgba(253,160,133,.35), transparent 45%),
+        radial-gradient(circle at 50% 70%, rgba(255,255,255,.18), transparent 55%);
+      filter: blur(0px);
+    }
+    .winFlash .flashOverlay{
+      animation: flash 900ms ease-out 1;
+    }
+    @keyframes flash{
+      0%   { opacity:0; transform: scale(0.9); }
+      20%  { opacity:1; transform: scale(1.02); }
+      60%  { opacity:.75; transform: scale(1.05); }
+      100% { opacity:0; transform: scale(1.10); }
+    }
+    .winFlash .reel{
+      animation: reelPulse 900ms ease-out 1;
+    }
+    @keyframes reelPulse{
+      0%   { box-shadow: inset 0 0 0 2px rgba(255,255,255,.03); filter: brightness(1); }
+      25%  { box-shadow: 0 0 0 3px rgba(246,211,101,.35), 0 0 30px rgba(253,160,133,.28); filter: brightness(1.25); }
+      100% { box-shadow: inset 0 0 0 2px rgba(255,255,255,.03); filter: brightness(1); }
+    }
 
     /* Lever */
     .leverPanel{
@@ -229,14 +284,12 @@
       top: 12px;
       left: 50%;
       transform: translateX(-50%);
-      touch-action: none;
     }
     .leverKnob::after{
       content:"";
       position:absolute; inset:10px;
       border-radius: 50%;
       background: rgba(255,255,255,.22);
-      filter: blur(0px);
     }
     .leverLine{
       position:absolute;
@@ -267,6 +320,14 @@
     }
     .listBox div{ padding: 7px 0; border-bottom: 1px dashed #2a3a6d; }
     .listBox div:last-child{ border-bottom:0; }
+
+    /* ✅ iPhone 拉桿體驗修正 */
+    .leverTrack,
+    .leverKnob{
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
   </style>
 </head>
 
@@ -293,11 +354,16 @@
     </div>
 
     <div class="machine" style="margin-top:14px;">
-      <div class="marquee">777 LUCKY DRAW <span class="dots">● ● ●</span></div>
+      <div class="marquee" id="marquee">
+        777 LUCKY DRAW <span class="dots">● ● ●</span>
+        <span class="winBadge">WIN</span>
+      </div>
 
       <div class="machineBody">
         <!-- Reels -->
         <div class="reelsWrap" id="reelsWrap">
+          <div class="flashOverlay"></div>
+
           <div class="reels">
             <div class="reel">
               <div class="glow"></div>
@@ -330,7 +396,7 @@
         <!-- Lever -->
         <div class="leverPanel">
           <div class="leverTitle">拉桿</div>
-          <div class="leverHint">往下拉到底 → 放開抽</div>
+          <div class="leverHint">往下拉到底 → 放開抽（iPhone 友善）</div>
 
           <div class="leverTrack" id="leverTrack">
             <div class="leverFill" id="leverFill"></div>
@@ -343,7 +409,7 @@
           </div>
 
           <div class="muted" style="margin-top:10px;">
-            小提示：iPhone 上用手指拖拉手把最有感。
+            小提示：整條拉桿區域都能拖拉（不用死抓圓球）。
           </div>
         </div>
       </div>
@@ -385,6 +451,7 @@
   const stateText = document.getElementById("stateText");
 
   const reelsWrap = document.getElementById("reelsWrap");
+  const marquee = document.getElementById("marquee");
   const reel1 = document.getElementById("reel1");
   const reel2 = document.getElementById("reel2");
   const reel3 = document.getElementById("reel3");
@@ -410,6 +477,70 @@
     return a[0] % maxExclusive;
   }
 
+  // ===== 📳 Haptics (best-effort) =====
+  // iPhone Safari 多數不支援 navigator.vibrate；支援就震動，否則只做聲音+閃光提示
+  function haptic(pattern){
+    try{
+      if (navigator.vibrate) navigator.vibrate(pattern);
+    }catch(e){}
+  }
+
+  // ===== 🔊 WebAudio SFX (不需外部檔案) =====
+  let audioCtx = null;
+  function ensureAudio(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if(audioCtx.state === "suspended"){
+      audioCtx.resume();
+    }
+  }
+
+  function playTone(freq=440, dur=0.08, type="sine", gain=0.08){
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t+dur+0.02);
+  }
+
+  function playPullSfx(){
+    // 拉桿「咻」：由高到低的滑音
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(820, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.16);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.10, t+0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t);
+    o.stop(t+0.20);
+  }
+
+  function playStopSfx(which){
+    // 777 停輪：三段不同音高「叩」
+    const freqs = [520, 420, 320];
+    playTone(freqs[which] || 360, 0.06, "square", 0.06);
+  }
+
+  function playWinSfx(){
+    // WIN 小旋律
+    playTone(523.25, 0.08, "sine", 0.08); // C5
+    setTimeout(()=>playTone(659.25, 0.08, "sine", 0.08), 90);  // E5
+    setTimeout(()=>playTone(783.99, 0.10, "sine", 0.09), 180); // G5
+  }
+
   // ===== UI =====
   function renderPickMe(){
     radioList.innerHTML = "";
@@ -428,6 +559,9 @@
         btnStart.disabled = false;
         pickHint.textContent = `已選：${me}`;
         pickHint.className = "muted";
+        // 讓音效在使用者手勢後可啟用
+        ensureAudio();
+        playTone(440, 0.05, "sine", 0.05);
       });
 
       const text = document.createElement("b");
@@ -457,6 +591,9 @@
 
     result.textContent = "拉桿開始抽";
     status.textContent = "提示：把右邊拉桿往下拉到底，放開即可抽。";
+
+    reelsWrap.classList.remove("winFlash");
+    marquee.classList.remove("winOn");
 
     renderHistory();
     renderExcluded();
@@ -518,6 +655,8 @@
   }
 
   function startSpin(){
+    ensureAudio();
+
     if(busy) return;
     if(remaining.length === 0){
       result.textContent = "✅ 全部都抽完了";
@@ -529,17 +668,23 @@
     busy = true;
     stateText.textContent = "轉動中";
     reelsWrap.classList.add("spinning");
+    reelsWrap.classList.remove("winFlash");
+    marquee.classList.remove("winOn");
+
     result.textContent = "🎰 轉動中…";
     status.textContent = "請稍等，正在抽籤（RAND）";
+
+    // 拉桿音效 + 小震動（有支援就震）
+    playPullSfx();
+    haptic([10, 20, 10]);
 
     // 轉動時隨機顯示名字（視覺用）
     const poolForVisual = remaining.length ? remaining : ALL_NAMES.filter(n => n !== me);
     const getVisual = () => poolForVisual[randInt(poolForVisual.length)];
 
-    let t1 = 0, t2 = 0, t3 = 0;
-    const i1 = setInterval(()=>{ reel1.textContent = getVisual(); t1++; }, 60);
-    const i2 = setInterval(()=>{ reel2.textContent = getVisual(); t2++; }, 70);
-    const i3 = setInterval(()=>{ reel3.textContent = getVisual(); t3++; }, 80);
+    const i1 = setInterval(()=>{ reel1.textContent = getVisual(); }, 60);
+    const i2 = setInterval(()=>{ reel2.textContent = getVisual(); }, 70);
+    const i3 = setInterval(()=>{ reel3.textContent = getVisual(); }, 80);
 
     // 真正的中獎者（RAND）—不受視覺影響
     const winner = pickWinner();
@@ -548,20 +693,33 @@
     setTimeout(()=>{
       clearInterval(i1);
       reel1.textContent = winner;
+      playStopSfx(0);
+      haptic(8);
     }, 850);
 
     setTimeout(()=>{
       clearInterval(i2);
       reel2.textContent = winner;
+      playStopSfx(1);
+      haptic(8);
     }, 1250);
 
     setTimeout(()=>{
       clearInterval(i3);
       reel3.textContent = winner;
+      playStopSfx(2);
+      haptic([12, 18, 12]); // 最後一下強一點
 
       reelsWrap.classList.remove("spinning");
+
+      // 🎇 777 三輪同字爆閃動畫（你這版本來就是三輪同字，這裡是加特效）
+      reelsWrap.classList.add("winFlash");
+      marquee.classList.add("winOn");
+      playWinSfx();
+
       result.innerHTML = `🎉 抽到：<span class="ok">${winner}</span>`;
       status.textContent = `已將「${winner}」排除，下一輪不會再抽到。`;
+
       renderHistory();
       renderExcluded();
 
@@ -578,8 +736,9 @@
     }, 1650);
   }
 
-  // ===== Lever drag (pull-to-spin) =====
+  // ===== Lever drag (iPhone 友善：用拖拉距離，不用即時座標) =====
   let dragging = false;
+  let startY = 0;
   let pull = 0; // 0..1
 
   function pointerY(e){
@@ -590,17 +749,27 @@
   function onStart(e){
     if(busy) return;
     if(remaining.length === 0) return;
+
+    ensureAudio(); // iOS 需要使用者手勢先喚醒音訊
     dragging = true;
+    startY = pointerY(e);
+    pull = 0;
+
     e.preventDefault();
   }
 
   function onMove(e){
     if(!dragging) return;
+
     const track = leverTrack.getBoundingClientRect();
-    const y = pointerY(e);
-    const p = (y - track.top) / track.height;
-    pull = Math.min(1, Math.max(0, p));
+    const currentY = pointerY(e);
+    const delta = currentY - startY;
+
+    const maxPull = track.height * 0.80; // 可拉距離
+    pull = Math.min(1, Math.max(0, delta / maxPull));
+
     setLever(pull);
+
     e.preventDefault();
   }
 
@@ -608,21 +777,27 @@
     if(!dragging) return;
     dragging = false;
 
-    // 必須拉到底（>= 0.92）才觸發抽
-    if(pull >= 0.92){
+    // ✅ iPhone 友善門檻：70% 視為「拉到底」
+    if(pull >= 0.70){
+      // 成功拉到底：給一下回饋（有震就震）
+      haptic([10, 20, 10]);
       startSpin();
     }else{
-      // 沒拉到底就回彈
-      setLever(0);
+      // 沒拉到底：小小失敗提示（輕音）
+      playTone(220, 0.06, "sine", 0.05);
     }
+
+    // 回彈
+    setLever(0);
     pull = 0;
   }
 
-  leverKnob.addEventListener("touchstart", onStart, {passive:false});
-  leverKnob.addEventListener("touchmove", onMove, {passive:false});
-  leverKnob.addEventListener("touchend", onEnd);
+  // ✅ 整條拉桿都能拉（不是只抓 knob）
+  leverTrack.addEventListener("touchstart", onStart, {passive:false});
+  leverTrack.addEventListener("touchmove", onMove, {passive:false});
+  leverTrack.addEventListener("touchend", onEnd);
 
-  leverKnob.addEventListener("mousedown", onStart);
+  leverTrack.addEventListener("mousedown", onStart);
   window.addEventListener("mousemove", onMove);
   window.addEventListener("mouseup", onEnd);
 
