@@ -1,125 +1,306 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>抽籤轉盤</title>
-<style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", system-ui;
-  margin: 16px;
-}
-h1 { font-size: 20px; }
-.card {
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 16px;
-}
-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-}
-button {
-  padding: 10px 16px;
-  border-radius: 10px;
-  border: 1px solid #000;
-  background: #fff;
-  font-weight: bold;
-}
-canvas {
-  width: 100%;
-  max-width: 360px;
-  aspect-ratio: 1/1;
-  border-radius: 50%;
-  border: 1px solid #ccc;
-}
-.result {
-  font-size: 18px;
-  font-weight: bold;
-  margin-top: 10px;
-}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>順序抽籤（自我排除）</title>
+  <style>
+    :root{
+      --font: 22px;
+      --font-big: 30px;
+      --radius: 18px;
+      --pad: 16px;
+      --gap: 12px;
+      --border: 1px solid #ddd;
+    }
+    body{
+      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", system-ui, "Segoe UI", Arial;
+      margin: 16px;
+      font-size: var(--font);
+      line-height: 1.5;
+      background: #fff;
+      color:#111;
+    }
+    h1{
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+    .muted{ color:#666; font-size: 18px; }
+    .card{
+      border: var(--border);
+      border-radius: var(--radius);
+      padding: var(--pad);
+      margin: 14px 0;
+    }
+    .row{ display:flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
+    button{
+      font-size: 22px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      border: 2px solid #111;
+      background: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:disabled{
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    /* Radio list (big) */
+    .radioList{
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .radioItem{
+      display:flex;
+      align-items:center;
+      gap: 14px;
+      padding: 14px 14px;
+      border: 2px solid #eee;
+      border-radius: 16px;
+    }
+    .radioItem input[type="radio"]{
+      width: 28px;
+      height: 28px;
+      transform: translateY(1px);
+    }
+    .radioItem b{
+      font-size: 24px;
+    }
+
+    .big{
+      font-size: var(--font-big);
+      font-weight: 900;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 2px solid #eee;
+      border-radius: 999px;
+      font-size: 20px;
+      background: #fafafa;
+    }
+    .listBox{
+      max-height: 220px;
+      overflow:auto;
+      border: 2px solid #eee;
+      border-radius: 16px;
+      padding: 10px 14px;
+      background: #fff;
+    }
+    .listBox div{ padding: 6px 0; border-bottom: 1px dashed #eee; }
+    .listBox div:last-child{ border-bottom: 0; }
+
+    .success{ color:#137333; }
+    .danger{ color:#b00020; }
+  </style>
 </head>
 
 <body>
-<h1>🎯 抽籤轉盤</h1>
+  <h1>🎯 順序抽籤（排除我自己＋已抽過）</h1>
+  <div class="muted">流程：先選「我是誰」→ 開始 → 每次抽 1 人，抽到就移除，不重複。</div>
 
-<div class="card" id="list"></div>
+  <!-- STEP 1: pick me -->
+  <div class="card" id="stepPickMe">
+    <div class="big">1) 你是誰？（單選）</div>
+    <div class="radioList" id="radioList"></div>
 
-<div class="card">
-<canvas id="wheel" width="600" height="600"></canvas><br><br>
-<button onclick="spin()">開始抽</button>
-<div class="result" id="result">尚未抽籤</div>
-</div>
+    <div class="row" style="margin-top: 14px;">
+      <button id="btnStart" disabled>開始（排除我自己）</button>
+      <span class="muted" id="pickHint">請先選一個人名</span>
+    </div>
+  </div>
+
+  <!-- STEP 2: draw -->
+  <div class="card" id="stepDraw" style="display:none;">
+    <div class="row">
+      <span class="pill">我自己：<b id="meName">—</b>（已排除）</span>
+      <span class="pill">剩餘：<b id="remainCount">0</b> 人</span>
+    </div>
+
+    <div class="row" style="margin-top: 14px;">
+      <button id="btnDraw">抽下一位</button>
+      <button id="btnResetAll" style="border-color:#999; font-weight:700;">全部重來</button>
+    </div>
+
+    <div class="card" style="border:2px solid #eee; background:#fafafa;">
+      <div class="big" id="result">尚未抽籤</div>
+      <div class="muted" id="status"></div>
+    </div>
+
+    <div class="row" style="margin-top: 10px;">
+      <div style="flex:1; min-width: 260px;">
+        <div style="font-weight:900; margin-bottom:8px;">已抽順序</div>
+        <div class="listBox" id="historyBox"></div>
+      </div>
+      <div style="flex:1; min-width: 260px;">
+        <div style="font-weight:900; margin-bottom:8px;">已排除名單（含我自己＋已抽過）</div>
+        <div class="listBox" id="excludedBox"></div>
+      </div>
+    </div>
+  </div>
 
 <script>
-const names = ["玉","冰","鈞","紅","葉","白","底","豆","宏","7","大雄","Allen"];
-let selected = new Set(names);
-let excluded = new Set();
+  // ===== 你的人名清單：只要改這裡 =====
+  const ALL_NAMES = ["玉","冰","鈞","紅","葉","白","底","豆","宏","7","大雄","Allen"];
 
-const list = document.getElementById("list");
-const canvas = document.getElementById("wheel");
-const ctx = canvas.getContext("2d");
-const result = document.getElementById("result");
+  // ===== State =====
+  let me = null;
+  let remaining = [];
+  let excluded = new Set();
+  let history = [];
 
-function renderList(){
-  list.innerHTML = "<b>參加名單</b><br>";
-  names.forEach(n=>{
-    const label = document.createElement("label");
-    const cb = document.createElement("input");
-    cb.type="checkbox";
-    cb.checked=selected.has(n);
-    cb.onchange=()=>cb.checked?selected.add(n):selected.delete(n);
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(
-      n + (excluded.has(n)?"（已抽過）":"")
-    ));
-    list.appendChild(label);
-  });
-}
+  // ===== Elements =====
+  const radioList = document.getElementById("radioList");
+  const btnStart = document.getElementById("btnStart");
+  const pickHint = document.getElementById("pickHint");
 
-function pool(){
-  return names.filter(n=>selected.has(n)&&!excluded.has(n));
-}
+  const stepPickMe = document.getElementById("stepPickMe");
+  const stepDraw = document.getElementById("stepDraw");
 
-function draw(){
-  const p = pool();
-  const N = p.length||1;
-  const r = canvas.width/2;
-  ctx.clearRect(0,0,600,600);
-  ctx.save();
-  ctx.translate(r,r);
-  const slice = Math.PI*2/N;
-  for(let i=0;i<N;i++){
-    ctx.fillStyle=i%2?"#eee":"#ddd";
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0,0,r-10,i*slice,(i+1)*slice);
-    ctx.fill();
-    ctx.save();
-    ctx.rotate(i*slice+slice/2);
-    ctx.textAlign="right";
-    ctx.font="24px system-ui";
-    ctx.fillStyle="#000";
-    ctx.fillText(p[i], r-20, 8);
-    ctx.restore();
+  const meName = document.getElementById("meName");
+  const remainCount = document.getElementById("remainCount");
+  const btnDraw = document.getElementById("btnDraw");
+  const btnResetAll = document.getElementById("btnResetAll");
+
+  const result = document.getElementById("result");
+  const status = document.getElementById("status");
+  const historyBox = document.getElementById("historyBox");
+  const excludedBox = document.getElementById("excludedBox");
+
+  function renderPickMe(){
+    radioList.innerHTML = "";
+    ALL_NAMES.forEach((name, idx) => {
+      const label = document.createElement("label");
+      label.className = "radioItem";
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "me";
+      input.value = name;
+      input.id = "me_" + idx;
+
+      input.addEventListener("change", () => {
+        me = name;
+        btnStart.disabled = false;
+        pickHint.textContent = `已選：${me}`;
+        pickHint.className = "muted success";
+      });
+
+      const text = document.createElement("b");
+      text.textContent = name;
+
+      label.appendChild(input);
+      label.appendChild(text);
+      radioList.appendChild(label);
+    });
   }
-  ctx.restore();
-}
 
-function spin(){
-  const p = pool();
-  if(!p.length){ result.textContent="沒人可抽"; return;}
-  const pick=p[Math.floor(Math.random()*p.length)];
-  excluded.add(pick);
-  result.textContent="🎉 抽到："+pick;
-  renderList(); draw();
-}
+  function initGame(){
+    if(!me) return;
 
-renderList(); draw();
+    // reset
+    excluded = new Set([me]);               // 先排除自己
+    remaining = ALL_NAMES.filter(n => n !== me);
+    history = [];
+
+    // UI
+    meName.textContent = me;
+    remainCount.textContent = remaining.length;
+    result.textContent = "按「抽下一位」開始";
+    status.textContent = "你自己已排除，不會被抽到。";
+    status.className = "muted";
+
+    renderHistory();
+    renderExcluded();
+
+    stepPickMe.style.display = "none";
+    stepDraw.style.display = "block";
+
+    btnDraw.disabled = remaining.length === 0;
+  }
+
+  function drawNext(){
+    if(remaining.length === 0){
+      result.textContent = "✅ 全部都抽完了";
+      status.textContent = "沒有剩餘人員可以抽。";
+      status.className = "muted";
+      btnDraw.disabled = true;
+      return;
+    }
+
+    const idx = Math.floor(Math.random() * remaining.length);
+    const picked = remaining.splice(idx, 1)[0]; // 抽到就移除
+
+    excluded.add(picked);
+    history.push(picked);
+
+    result.innerHTML = `🎉 抽到：<span class="success">${picked}</span>`;
+    status.textContent = `已將「${picked}」排除，下一輪不會再抽到。`;
+    remainCount.textContent = remaining.length;
+
+    renderHistory();
+    renderExcluded();
+
+    if(remaining.length === 0){
+      status.textContent = "✅ 已抽完所有人（除了你自己）。";
+      btnDraw.disabled = true;
+    }
+  }
+
+  function renderHistory(){
+    historyBox.innerHTML = "";
+    if(history.length === 0){
+      historyBox.innerHTML = `<div class="muted">（尚未抽出任何人）</div>`;
+      return;
+    }
+    history.forEach((n, i) => {
+      const div = document.createElement("div");
+      div.innerHTML = `<b>#${i+1}</b>　${n}`;
+      historyBox.appendChild(div);
+    });
+  }
+
+  function renderExcluded(){
+    excludedBox.innerHTML = "";
+    const arr = Array.from(excluded);
+    if(arr.length === 0){
+      excludedBox.innerHTML = `<div class="muted">（目前沒有排除）</div>`;
+      return;
+    }
+    arr.forEach(n => {
+      const div = document.createElement("div");
+      div.innerHTML = (n === me) ? `👤 <b>${n}</b>（我自己）` : `🚫 ${n}`;
+      excludedBox.appendChild(div);
+    });
+  }
+
+  function resetAll(){
+    // reset to pick-me screen
+    me = null;
+    stepDraw.style.display = "none";
+    stepPickMe.style.display = "block";
+    btnStart.disabled = true;
+    pickHint.textContent = "請先選一個人名";
+    pickHint.className = "muted";
+
+    // clear radios
+    const radios = document.querySelectorAll('input[name="me"]');
+    radios.forEach(r => r.checked = false);
+  }
+
+  // events
+  btnStart.addEventListener("click", initGame);
+  btnDraw.addEventListener("click", drawNext);
+  btnResetAll.addEventListener("click", resetAll);
+
+  // init
+  renderPickMe();
 </script>
 </body>
 </html>
