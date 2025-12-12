@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>777 拉霸抽籤</title>
+  <title>777 拉霸抽籤（自我排除＋不重複）</title>
   <style>
     :root{
       --bg:#0b0f1a;
@@ -341,7 +341,7 @@
 </head>
 
 <body>
-  <h1>🎰 777 拉霸抽籤</h1>
+  <h1>🎰 777 拉霸抽籤（排除我自己＋已抽過）</h1>
   <div class="muted">先選「我是誰」→ 開始 → 每次拉桿抽 1 人，抽到就移除，不重複。</div>
 
   <!-- STEP 1 -->
@@ -389,6 +389,11 @@
               <div class="window"></div>
               <div class="reelText" id="reel3">—</div>
             </div>
+          </div>
+
+          <div class="resultBox">
+            <div class="big" id="result">拉桿開始抽</div>
+            <div class="muted" id="status">提示：把右邊拉桿往下拉到底，放開即可抽。</div>
           </div>
 
           <div class="statusBar">
