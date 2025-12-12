@@ -31,6 +31,16 @@
       line-height:1.45;
       -webkit-text-size-adjust: 100%;
     }
+
+    /* ✅【新增】拉桿期間鎖定整個頁面（iPhone 防誤滑 + 放手回原位用） */
+    body.lock-scroll{
+      position: fixed;
+      width: 100%;
+      overflow: hidden;
+      /* iOS 某些情況要加這行更穩 */
+      left: 0; right: 0;
+    }
+
     h1{ margin:0 0 10px; font-size:28px; letter-spacing:.5px; }
     .muted{ color:var(--muted); font-size:18px; }
     .card{
@@ -469,6 +479,19 @@
   const leverKnob = document.getElementById("leverKnob");
   const leverFill = document.getElementById("leverFill");
 
+  // ===== ✅【新增】Page Scroll Lock：拉桿拖曳期間鎖頁，放開回原位 =====
+  let _scrollY = 0;
+  function lockScroll(){
+    _scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.classList.add("lock-scroll");
+    document.body.style.top = `-${_scrollY}px`;
+  }
+  function unlockScroll(){
+    document.body.classList.remove("lock-scroll");
+    document.body.style.top = "";
+    window.scrollTo(0, _scrollY);
+  }
+
   // ===== Crypto RNG helper (更穩的 RAND) =====
   function randInt(maxExclusive){
     if (maxExclusive <= 0) return 0;
@@ -478,7 +501,6 @@
   }
 
   // ===== 📳 Haptics (best-effort) =====
-  // iPhone Safari 多數不支援 navigator.vibrate；支援就震動，否則只做聲音+閃光提示
   function haptic(pattern){
     try{
       if (navigator.vibrate) navigator.vibrate(pattern);
@@ -512,7 +534,6 @@
   }
 
   function playPullSfx(){
-    // 拉桿「咻」：由高到低的滑音
     if(!audioCtx) return;
     const t = audioCtx.currentTime;
     const o = audioCtx.createOscillator();
@@ -529,16 +550,14 @@
   }
 
   function playStopSfx(which){
-    // 777 停輪：三段不同音高「叩」
     const freqs = [520, 420, 320];
     playTone(freqs[which] || 360, 0.06, "square", 0.06);
   }
 
   function playWinSfx(){
-    // WIN 小旋律
-    playTone(523.25, 0.08, "sine", 0.08); // C5
-    setTimeout(()=>playTone(659.25, 0.08, "sine", 0.08), 90);  // E5
-    setTimeout(()=>playTone(783.99, 0.10, "sine", 0.09), 180); // G5
+    playTone(523.25, 0.08, "sine", 0.08);
+    setTimeout(()=>playTone(659.25, 0.08, "sine", 0.08), 90);
+    setTimeout(()=>playTone(783.99, 0.10, "sine", 0.09), 180);
   }
 
   // ===== UI =====
@@ -559,7 +578,6 @@
         btnStart.disabled = false;
         pickHint.textContent = `已選：${me}`;
         pickHint.className = "muted";
-        // 讓音效在使用者手勢後可啟用
         ensureAudio();
         playTone(440, 0.05, "sine", 0.05);
       });
@@ -674,11 +692,9 @@
     result.textContent = "🎰 轉動中…";
     status.textContent = "請稍等，正在抽籤（RAND）";
 
-    // 拉桿音效 + 小震動（有支援就震）
     playPullSfx();
     haptic([10, 20, 10]);
 
-    // 轉動時隨機顯示名字（視覺用）
     const poolForVisual = remaining.length ? remaining : ALL_NAMES.filter(n => n !== me);
     const getVisual = () => poolForVisual[randInt(poolForVisual.length)];
 
@@ -686,10 +702,8 @@
     const i2 = setInterval(()=>{ reel2.textContent = getVisual(); }, 70);
     const i3 = setInterval(()=>{ reel3.textContent = getVisual(); }, 80);
 
-    // 真正的中獎者（RAND）—不受視覺影響
     const winner = pickWinner();
 
-    // 分段停止（像 777）
     setTimeout(()=>{
       clearInterval(i1);
       reel1.textContent = winner;
@@ -708,11 +722,10 @@
       clearInterval(i3);
       reel3.textContent = winner;
       playStopSfx(2);
-      haptic([12, 18, 12]); // 最後一下強一點
+      haptic([12, 18, 12]);
 
       reelsWrap.classList.remove("spinning");
 
-      // 🎇 777 三輪同字爆閃動畫（你這版本來就是三輪同字，這裡是加特效）
       reelsWrap.classList.add("winFlash");
       marquee.classList.add("winOn");
       playWinSfx();
@@ -731,7 +744,6 @@
       }
 
       busy = false;
-      // 拉桿回彈
       setLever(0);
     }, 1650);
   }
@@ -750,10 +762,13 @@
     if(busy) return;
     if(remaining.length === 0) return;
 
-    ensureAudio(); // iOS 需要使用者手勢先喚醒音訊
+    ensureAudio();
     dragging = true;
     startY = pointerY(e);
     pull = 0;
+
+    // ✅【新增】開始拉桿就鎖頁，避免 iPhone 誤滑
+    lockScroll();
 
     e.preventDefault();
   }
@@ -765,7 +780,7 @@
     const currentY = pointerY(e);
     const delta = currentY - startY;
 
-    const maxPull = track.height * 0.80; // 可拉距離
+    const maxPull = track.height * 0.80;
     pull = Math.min(1, Math.max(0, delta / maxPull));
 
     setLever(pull);
@@ -777,19 +792,18 @@
     if(!dragging) return;
     dragging = false;
 
-    // ✅ iPhone 友善門檻：70% 視為「拉到底」
     if(pull >= 0.70){
-      // 成功拉到底：給一下回饋（有震就震）
       haptic([10, 20, 10]);
       startSpin();
     }else{
-      // 沒拉到底：小小失敗提示（輕音）
       playTone(220, 0.06, "sine", 0.05);
     }
 
-    // 回彈
     setLever(0);
     pull = 0;
+
+    // ✅【新增】放手就解鎖並回到原本位置
+    unlockScroll();
   }
 
   // ✅ 整條拉桿都能拉（不是只抓 knob）
@@ -806,6 +820,9 @@
   btnPull.addEventListener("click", startSpin);
 
   btnResetAll.addEventListener("click", () => {
+    // ✅ 保險：如果剛好在鎖定狀態就解掉
+    unlockScroll();
+
     me = null;
     stepDraw.style.display = "none";
     stepPickMe.style.display = "block";
