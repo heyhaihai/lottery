@@ -32,12 +32,11 @@
       -webkit-text-size-adjust: 100%;
     }
 
-    /* ✅【新增】拉桿期間鎖定整個頁面（iPhone 防誤滑 + 放手回原位用） */
+    /* ✅【新增】拉桿期間鎖定整個頁面（iPhone 防誤滑 + 放手回原位） */
     body.lock-scroll{
       position: fixed;
       width: 100%;
       overflow: hidden;
-      /* iOS 某些情況要加這行更穩 */
       left: 0; right: 0;
     }
 
@@ -415,7 +414,8 @@
           </div>
 
           <div class="row" style="margin-top:12px;">
-            <button id="btnPull" style="width:100%;">我懶得拉：直接抽</button>
+            <!-- ✅【改】開始前不能抽 -->
+            <button id="btnPull" style="width:100%;" disabled>我懶得拉：直接抽</button>
           </div>
 
           <div class="muted" style="margin-top:10px;">
@@ -448,6 +448,9 @@
   let history = [];
   let busy = false;
 
+  // ✅【新增】只把「開始選的那個人(me)」加回一次（在第2輪開始前）
+  let meRestored = false;
+
   // ===== Elements =====
   const radioList = document.getElementById("radioList");
   const btnStart = document.getElementById("btnStart");
@@ -479,7 +482,7 @@
   const leverKnob = document.getElementById("leverKnob");
   const leverFill = document.getElementById("leverFill");
 
-  // ===== ✅【新增】Page Scroll Lock：拉桿拖曳期間鎖頁，放開回原位 =====
+  // ===== 🔒 Page Scroll Lock（拉桿期間鎖頁，放手回原位） =====
   let _scrollY = 0;
   function lockScroll(){
     _scrollY = window.scrollY || document.documentElement.scrollTop || 0;
@@ -555,9 +558,9 @@
   }
 
   function playWinSfx(){
-    playTone(523.25, 0.08, "sine", 0.08);
-    setTimeout(()=>playTone(659.25, 0.08, "sine", 0.08), 90);
-    setTimeout(()=>playTone(783.99, 0.10, "sine", 0.09), 180);
+    playTone(523.25, 0.08, "sine", 0.08); // C5
+    setTimeout(()=>playTone(659.25, 0.08, "sine", 0.08), 90);  // E5
+    setTimeout(()=>playTone(783.99, 0.10, "sine", 0.09), 180); // G5
   }
 
   // ===== UI =====
@@ -595,9 +598,13 @@
     if(!me) return;
 
     busy = false;
-    excluded = new Set([me]);
+
+    excluded = new Set([me]);                // 第一輪保護：排除我自己
     remaining = ALL_NAMES.filter(n => n !== me);
     history = [];
+
+    // ✅ reset：每次開始都要重置「加回我自己」的旗標
+    meRestored = false;
 
     meName.textContent = me;
     remainCount.textContent = remaining.length;
@@ -618,6 +625,9 @@
 
     stepPickMe.style.display = "none";
     stepDraw.style.display = "block";
+
+    // ✅ 開始後才允許抽
+    btnPull.disabled = false;
 
     setLever(0);
   }
@@ -661,14 +671,29 @@
     leverFill.style.height = Math.round(p * 100) + "%";
   }
 
-  // ===== Spin animation =====
+  // ===== ✅ 抽籤核心：第1輪排除 me，第2輪開始前把 me 加回一次 =====
   function pickWinner(){
     if(remaining.length === 0) return null;
+
+    // ✅ 只有「開始選的那個人(me)」會被加回一次（在第二輪開始前）
+    // 條件：歷史 >= 1 代表第一輪已抽完；且尚未加回
+    if(history.length >= 1 && !meRestored){
+      if(!remaining.includes(me)){
+        remaining.push(me);
+      }
+      excluded.delete(me);
+      meRestored = true;
+      remainCount.textContent = remaining.length;
+    }
+
+    // 安全保險：避免異常狀態抽到 undefined
     const idx = randInt(remaining.length);
     const picked = remaining.splice(idx, 1)[0];
+
     excluded.add(picked);
     history.push(picked);
     remainCount.textContent = remaining.length;
+
     return picked;
   }
 
@@ -702,6 +727,7 @@
     const i2 = setInterval(()=>{ reel2.textContent = getVisual(); }, 70);
     const i3 = setInterval(()=>{ reel3.textContent = getVisual(); }, 80);
 
+    // 真正的中獎者（RAND）
     const winner = pickWinner();
 
     setTimeout(()=>{
@@ -738,7 +764,7 @@
 
       if(remaining.length === 0){
         stateText.textContent = "完成";
-        status.textContent = "✅ 已抽完所有人（除了你自己）。";
+        status.textContent = "✅ 已抽完所有人。";
       }else{
         stateText.textContent = "待抽";
       }
@@ -748,7 +774,7 @@
     }, 1650);
   }
 
-  // ===== Lever drag (iPhone 友善：用拖拉距離，不用即時座標) =====
+  // ===== Lever drag (iPhone 友善：用拖拉距離) =====
   let dragging = false;
   let startY = 0;
   let pull = 0; // 0..1
@@ -767,7 +793,7 @@
     startY = pointerY(e);
     pull = 0;
 
-    // ✅【新增】開始拉桿就鎖頁，避免 iPhone 誤滑
+    // ✅ 鎖頁，避免 iPhone 誤滑
     lockScroll();
 
     e.preventDefault();
@@ -784,7 +810,6 @@
     pull = Math.min(1, Math.max(0, delta / maxPull));
 
     setLever(pull);
-
     e.preventDefault();
   }
 
@@ -802,7 +827,7 @@
     setLever(0);
     pull = 0;
 
-    // ✅【新增】放手就解鎖並回到原本位置
+    // ✅ 放手回到原本位置
     unlockScroll();
   }
 
@@ -820,13 +845,14 @@
   btnPull.addEventListener("click", startSpin);
 
   btnResetAll.addEventListener("click", () => {
-    // ✅ 保險：如果剛好在鎖定狀態就解掉
+    // 保險：如果剛好鎖頁，解掉
     unlockScroll();
 
     me = null;
     stepDraw.style.display = "none";
     stepPickMe.style.display = "block";
     btnStart.disabled = true;
+    btnPull.disabled = true; // ✅ 重置後不能抽
     pickHint.textContent = "請先選一個人名";
     const radios = document.querySelectorAll('input[name="me"]');
     radios.forEach(r => r.checked = false);
