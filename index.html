@@ -337,67 +337,6 @@
       -webkit-user-select: none;
       user-select: none;
     }
-/* =========================
-   📱 iPhone UX 最後 5% 微調
-   ========================= */
-@media (max-width: 480px){
-
-  body{
-    margin: 8px;
-  }
-
-  /* 整台機器限制在螢幕內（iOS 安全高度） */
-  .machine{
-    max-height: 100svh;
-  }
-
-  .machineBody{
-    gap: 10px;
-  }
-
-  /* 🎰 Reel 拉霸：縮高不縮感覺 */
-  .reel{
-    height: 120px;        /* 原 160 */
-  }
-
-  .reelText{
-    font-size: 28px;      /* 原 34 */
-  }
-
-  .window{
-    height: 56px;
-  }
-
-  /* 📦 結果區塊壓縮一點 */
-  .resultBox{
-    padding: 12px;
-  }
-
-  /* 🕹 拉桿區：不要撐爆畫面 */
-  .leverPanel{
-    min-height: auto;     /* 關鍵 */
-    padding: 12px;
-  }
-
-  .leverTrack{
-    height: 180px;        /* 原 210 */
-  }
-
-  .leverKnob{
-    width: 72px;
-    height: 72px;
-  }
-
-  /* 小列表在 iPhone 不搶空間 */
-  .smallBoxes{
-    gap: 8px;
-  }
-
-  .listBox{
-    max-height: 160px;
-  }
-}
-
   </style>
 </head>
 
@@ -924,6 +863,3 @@
 </script>
 </body>
 </html>
-
-用這個HTML，將待抽名單獨立列出來，原來的HTML 不要動，插入待抽名單清單，
-將待抽名單+HTML 原來的整併
